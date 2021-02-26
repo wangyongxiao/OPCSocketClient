@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -40,14 +41,24 @@ namespace OPCConsoleTest
                             {
                                 var rsp = JsonConvert.DeserializeObject<StartMonitoringItemsRsp>(payload);
                                 _id = rsp.GroupId;
+                                Console.WriteLine("--------------------测试监视节点值响应--------------------" + "GroupId " + _id);
                                 //测试读取值 SunFull.X2OPC.1
                                 //TestWriteNodeValue();
 
                                 TestReadNode(_id);
                             }
+                            else if (cmdHeader.Cmd == (int)Command.Read_Nodes_Values_Rsp)
+                            { 
+
+
+                            }
                             else if (cmdHeader.Cmd == (int)Command.Notify_Nodes_Values_Ex)
                             {
                                 Console.WriteLine("值已修改:" + "payload:" + payload);
+                            }
+                            else
+                            {
+                                Console.WriteLine("cmdHeader.Cmd :" + cmdHeader.Cmd + " unkonwn");
                             }
                         }
                         else
@@ -74,20 +85,45 @@ namespace OPCConsoleTest
             Console.WriteLine("发送Cmd:" + header.Cmd);
         }
 
+        static string GetStringListMd5(List<string> items)
+        {
+            StringBuilder sb = new StringBuilder();
+            foreach (var item in items)
+            {
+                sb.Append(item);
+            }
+
+            MD5 md5Hash = MD5.Create();
+
+            byte[] buffer = Encoding.ASCII.GetBytes(sb.ToString());
+            md5Hash.ComputeHash(buffer);
+
+            sb.Clear();
+
+            string str = "";
+            for (int i = 0; i < buffer.Length; i++)
+            {
+                str += buffer[i].ToString("x2");
+            }
+            return str;
+        }
         static void TestMonitorNode()
         {
-            Console.WriteLine("--------------------测试读取节点值--------------------");
+            Console.WriteLine("--------------------测试监视节点值--------------------");
             Header header = new Header(1, (int)Command.Start_Monitor_Nodes_Req, 0, 1);
             List<string> items = new List<string>();
             items.Add("MODTEST.Channel_1.Device_1.Tag_1");
             items.Add("MODTEST.Channel_1.Device_1.Tag_2");
             items.Add("MODTEST.Channel_1.Device_1.Tag_3");
-            StartMonitoringItemsReq monitoringItemsReq = new StartMonitoringItemsReq("SunFull.X2OPC.1", items);
+
+            String strMd5 = GetStringListMd5(items);
+
+            StartMonitoringItemsReq monitoringItemsReq = new StartMonitoringItemsReq("SunFull.X2OPC.1", items, strMd5);
             string payload = JsonConvert.SerializeObject(monitoringItemsReq);
 
             byte[] bufferList = StructUtility.Package(header, payload);
             int sendByteCount = _client.Send(bufferList, SocketFlags.None);
-            Console.WriteLine("发送Cmd:" + header.Cmd);
+            Console.WriteLine("发送Cmd:" + header.Cmd+" 监视节点");
         }
 
         static void TestReadNode(String GroupId)
@@ -98,12 +134,15 @@ namespace OPCConsoleTest
             items.Add("MODTEST.Channel_1.Device_1.Tag_1");
             items.Add("MODTEST.Channel_1.Device_1.Tag_2");
             items.Add("MODTEST.Channel_1.Device_1.Tag_3");
-            ReadItemsReq readItemsReq = new ReadItemsReq("SunFull.X2OPC.1", items, GroupId);
+
+            String strMd5 = GetStringListMd5(items);
+
+            ReadItemsReq readItemsReq = new ReadItemsReq("SunFull.X2OPC.1", items, GroupId, strMd5);
             string payload = JsonConvert.SerializeObject(readItemsReq);
 
             byte[] bufferList = StructUtility.Package(header, payload);
             int sendByteCount = _client.Send(bufferList, SocketFlags.None);
-            Console.WriteLine("发送Cmd:" + header.Cmd);
+            Console.WriteLine("发送Cmd:" + header.Cmd+ "读取节点值");
         }
 
         static void TestWriteNodeValue()
